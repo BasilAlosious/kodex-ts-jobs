@@ -1,0 +1,111 @@
+---
+interface Props {
+  title: string;
+  description: string;
+}
+const { title, description } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <slot name="head" />
+  </head>
+  <body>
+    <div class="frame">
+      <header class="site-header">
+        <a class="brand" href="/">
+          <span class="brand-mark" aria-hidden="true"></span>
+          Kodex
+        </a>
+        <span class="header-tag">Trust &amp; Safety Jobs</span>
+      </header>
+      <slot />
+      <footer class="site-footer">
+        <p>
+          Curated by <a href="https://kodexglobal.com">Kodex</a> — the portal for managing law
+          enforcement data requests. Roles link to each company's official careers page.
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    --bg-0: #050a18;
+    --bg-1: #0a1230;
+    --card: rgba(237, 241, 250, 0.04);
+    --card-hover: rgba(237, 241, 250, 0.07);
+    --line: rgba(237, 241, 250, 0.1);
+    --line-strong: rgba(237, 241, 250, 0.18);
+    --ink: #edf1fa;
+    --muted: #98a2bc;
+    --faint: #5f6a85;
+    --ember: #ff6a3d;
+    --ember-soft: rgba(255, 106, 61, 0.12);
+    --blue: #5b8cff;
+    --blue-soft: rgba(91, 140, 255, 0.12);
+    --good: #3ecf8e;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: 'Inter Tight', ui-sans-serif, system-ui, sans-serif;
+    background: radial-gradient(120% 90% at 50% -20%, var(--bg-1) 0%, var(--bg-0) 60%) fixed var(--bg-0);
+    color: var(--ink);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .frame { max-width: 1060px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 32px); }
+
+  .site-header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 22px 0; border-bottom: 1px solid var(--line);
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 700; font-size: 19px; letter-spacing: -0.01em; color: var(--ink);
+  }
+  .brand:hover { text-decoration: none; }
+  .brand-mark {
+    width: 22px; height: 22px; border-radius: 6px;
+    background: linear-gradient(135deg, var(--ember), #ff9d3d);
+    box-shadow: 0 0 18px rgba(255, 106, 61, 0.45);
+  }
+  .header-tag {
+    font-size: 13px; color: var(--muted); border: 1px solid var(--line);
+    border-radius: 99px; padding: 3px 12px; letter-spacing: 0.02em;
+  }
+
+  .site-footer {
+    border-top: 1px solid var(--line); margin-top: 64px; padding: 26px 0 40px;
+    font-size: 13.5px; color: var(--faint);
+  }
+  .site-footer a { color: var(--muted); }
+
+  .pill {
+    display: inline-flex; align-items: center;
+    font-size: 12.5px; font-weight: 500; letter-spacing: 0.01em;
+    padding: 3px 11px; border-radius: 99px;
+    background: var(--blue-soft); color: var(--blue);
+    white-space: nowrap;
+  }
+  .pill.remote { background: rgba(62, 207, 142, 0.12); color: var(--good); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>

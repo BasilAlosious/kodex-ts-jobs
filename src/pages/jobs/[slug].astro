@@ -1,0 +1,86 @@
+---
+import Base from '../../layouts/Base.astro';
+import data from '../../data/jobs.json';
+
+export function getStaticPaths() {
+  return data.jobs
+    .filter((j) => j.status === 'published')
+    .map((job) => ({ params: { slug: job.slug }, props: { job } }));
+}
+
+const { job } = Astro.props;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'JobPosting',
+  title: job.title,
+  datePosted: job.postedAt || job.firstSeen,
+  hiringOrganization: { '@type': 'Organization', name: job.company },
+  jobLocation: {
+    '@type': 'Place',
+    address: { '@type': 'PostalAddress', addressLocality: job.location },
+  },
+  ...(job.remote ? { jobLocationType: 'TELECOMMUTE' } : {}),
+  employmentType: 'FULL_TIME',
+  directApply: false,
+  url: new URL(`/jobs/${job.slug}/`, Astro.site).href,
+};
+---
+<Base title={`${job.title} at ${job.company} — Kodex T&S Jobs`} description={`${job.title} at ${job.company} (${job.location}). Found via the Kodex Trust & Safety job board.`}>
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} slot="head" />
+
+  <article class="job">
+    <a class="back" href="/">← All roles</a>
+    <div class="job-head">
+      <p class="company">{job.company}</p>
+      <h1>{job.title}</h1>
+      <div class="tags">
+        <span class="pill">{job.roleCategory}</span>
+        {job.remote && <span class="pill remote">Remote</span>}
+      </div>
+    </div>
+
+    <dl class="facts">
+      <div><dt>Location</dt><dd>{job.location}</dd></div>
+      {job.excerpt && <div><dt>Team</dt><dd>{job.excerpt}</dd></div>}
+      <div><dt>Listed</dt><dd>{new Date(job.postedAt || job.firstSeen).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</dd></div>
+      <div><dt>Source</dt><dd class="cap">{job.source}</dd></div>
+    </dl>
+
+    <a class="apply" href={job.applyUrl} target="_blank" rel="noopener">
+      Apply at {job.company} ↗
+    </a>
+    <p class="note">
+      You'll apply directly on {job.company}'s official careers page. Kodex curates this board
+      but isn't involved in hiring for this role.
+    </p>
+  </article>
+</Base>
+
+<style>
+  .job { max-width: 680px; padding-top: 40px; }
+  .back { font-size: 14px; color: var(--muted); }
+  .job-head { padding: 26px 0 6px; }
+  .company { font-size: 15px; font-weight: 600; color: var(--ember); margin: 0 0 6px; letter-spacing: 0.01em; }
+  h1 { font-size: clamp(26px, 4.5vw, 38px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.12; margin: 0 0 16px; }
+  .tags { display: flex; gap: 8px; }
+
+  .facts {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px;
+    background: var(--line); border: 1px solid var(--line); border-radius: 12px;
+    overflow: hidden; margin: 28px 0;
+  }
+  .facts > div { background: var(--bg-0); padding: 14px 18px; }
+  dt { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); margin-bottom: 3px; }
+  dd { margin: 0; font-size: 15px; font-weight: 500; }
+  .cap { text-transform: capitalize; }
+
+  .apply {
+    display: inline-block; font-size: 16px; font-weight: 600; color: #0a0f1f;
+    background: var(--ember); border-radius: 10px; padding: 13px 26px;
+    box-shadow: 0 0 24px rgba(255, 106, 61, 0.35);
+    transition: transform 0.15s ease;
+  }
+  .apply:hover { text-decoration: none; transform: translateY(-1px); }
+  .note { font-size: 13.5px; color: var(--faint); margin-top: 18px; max-width: 46ch; }
+</style>

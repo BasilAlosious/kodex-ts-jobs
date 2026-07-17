@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "kodex-ts-jobs",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "/Users/basilalosious/Downloads/kodex-ts-jobs",
+      "port": 4321
+    }
+  ]
+}

@@ -1,0 +1,181 @@
+---
+import Base from '../layouts/Base.astro';
+import data from '../data/jobs.json';
+
+const jobs = data.jobs.filter((j) => j.status === 'published');
+const companies = [...new Set(jobs.map((j) => j.company))].sort();
+const categories = [...new Set(jobs.map((j) => j.roleCategory))].sort();
+const updated = new Date(data.generatedAt).toLocaleDateString('en-US', {
+  month: 'long', day: 'numeric', year: 'numeric',
+});
+---
+<Base
+  title="Trust & Safety Jobs — Kodex"
+  description={`${jobs.length} open Trust & Safety, compliance, and policy roles across ${companies.length} companies. Curated by Kodex, refreshed weekly.`}
+>
+  <section class="hero">
+    <h1>Trust &amp; Safety Jobs</h1>
+    <p class="hero-sub">
+      Open roles in trust &amp; safety, compliance, policy, and investigations —
+      pulled straight from company career boards.
+    </p>
+    <p class="hero-meta">
+      <strong>{jobs.length}</strong> open roles · <strong>{companies.length}</strong> companies · updated {updated}
+    </p>
+  </section>
+
+  <section class="controls" aria-label="Filter jobs">
+    <input id="search" type="search" placeholder="Search title, company, location…" autocomplete="off" />
+    <div class="control-row">
+      <div class="cat-pills" id="cat-pills" role="group" aria-label="Filter by category">
+        <button class="cat-pill active" data-cat="">All</button>
+        {categories.map((c) => <button class="cat-pill" data-cat={c}>{c}</button>)}
+      </div>
+    </div>
+    <div class="control-row secondary">
+      <select id="company" aria-label="Filter by company">
+        <option value="">All companies</option>
+        {companies.map((c) => <option value={c}>{c}</option>)}
+      </select>
+      <label class="remote-toggle">
+        <input type="checkbox" id="remote" /> Remote only
+      </label>
+      <span class="count" id="count">{jobs.length} roles</span>
+    </div>
+  </section>
+
+  <section class="board" id="board">
+    {jobs.map((job) => (
+      <a
+        class="job-card"
+        href={`/jobs/${job.slug}/`}
+        data-title={job.title.toLowerCase()}
+        data-company={job.company}
+        data-location={job.location.toLowerCase()}
+        data-cat={job.roleCategory}
+        data-remote={job.remote ? '1' : ''}
+      >
+        <div class="job-main">
+          <h2>{job.title}</h2>
+          <p class="job-meta">
+            <span class="job-company">{job.company}</span>
+            <span class="dot" aria-hidden="true">·</span>
+            <span>{job.location}</span>
+          </p>
+        </div>
+        <div class="job-tags">
+          <span class="pill">{job.roleCategory}</span>
+          {job.remote && <span class="pill remote">Remote</span>}
+        </div>
+      </a>
+    ))}
+    <p class="empty" id="empty" hidden>No roles match those filters — try broadening.</p>
+  </section>
+</Base>
+
+<style>
+  .hero { padding: 52px 0 8px; max-width: 640px; }
+  h1 {
+    font-size: clamp(34px, 5.5vw, 52px); font-weight: 700;
+    letter-spacing: -0.03em; line-height: 1.05; margin: 0 0 14px;
+  }
+  .hero-sub { font-size: 17px; color: var(--muted); margin: 0 0 10px; }
+  .hero-meta { font-size: 14px; color: var(--faint); margin: 0; }
+  .hero-meta strong { color: var(--ink); font-weight: 600; }
+
+  .controls { padding: 26px 0 8px; display: flex; flex-direction: column; gap: 14px; }
+  #search {
+    width: 100%; max-width: 460px; font: inherit; font-size: 15px;
+    color: var(--ink); background: var(--card);
+    border: 1px solid var(--line-strong); border-radius: 10px; padding: 11px 15px;
+  }
+  #search:focus { outline: 2px solid var(--blue); outline-offset: 1px; border-color: transparent; }
+  #search::placeholder { color: var(--faint); }
+
+  .cat-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .cat-pill {
+    font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+    color: var(--muted); background: transparent;
+    border: 1px solid var(--line-strong); border-radius: 99px; padding: 5px 14px;
+    transition: all 0.15s ease;
+  }
+  .cat-pill:hover { color: var(--ink); border-color: var(--ink); }
+  .cat-pill.active {
+    color: #0a0f1f; background: var(--ember); border-color: var(--ember);
+    font-weight: 600; box-shadow: 0 0 16px rgba(255, 106, 61, 0.35);
+  }
+
+  .control-row.secondary { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  #company {
+    font: inherit; font-size: 14px; color: var(--ink); background: var(--card);
+    border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 10px;
+  }
+  #company option { color: #0a0f1f; }
+  .remote-toggle { font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 7px; cursor: pointer; }
+  .remote-toggle input { accent-color: var(--ember); width: 15px; height: 15px; }
+  .count { font-size: 13px; color: var(--faint); margin-left: auto; font-variant-numeric: tabular-nums; }
+
+  .board { display: flex; flex-direction: column; gap: 10px; padding-top: 18px; }
+  .job-card {
+    display: flex; justify-content: space-between; align-items: center; gap: 18px;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px 22px;
+    color: var(--ink); transition: all 0.15s ease;
+  }
+  .job-card:hover {
+    text-decoration: none; background: var(--card-hover);
+    border-color: var(--line-strong); transform: translateY(-1px);
+  }
+  .job-main { min-width: 0; }
+  .job-card h2 { font-size: 16.5px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
+  .job-meta { font-size: 13.5px; color: var(--muted); margin: 0; display: flex; gap: 8px; flex-wrap: wrap; }
+  .job-company { color: var(--ink); font-weight: 500; }
+  .dot { color: var(--faint); }
+  .job-tags { display: flex; gap: 8px; flex-shrink: 0; }
+  .empty { color: var(--muted); padding: 32px 4px; }
+
+  @media (max-width: 640px) {
+    .job-card { flex-direction: column; align-items: flex-start; gap: 10px; }
+  }
+</style>
+
+<script>
+  const search = document.getElementById('search') as HTMLInputElement;
+  const company = document.getElementById('company') as HTMLSelectElement;
+  const remote = document.getElementById('remote') as HTMLInputElement;
+  const pills = [...document.querySelectorAll<HTMLButtonElement>('.cat-pill')];
+  const cards = [...document.querySelectorAll<HTMLAnchorElement>('.job-card')];
+  const count = document.getElementById('count')!;
+  const empty = document.getElementById('empty')!;
+  let activeCat = '';
+
+  function apply() {
+    const q = search.value.trim().toLowerCase();
+    const co = company.value;
+    const remoteOnly = remote.checked;
+    let shown = 0;
+    for (const card of cards) {
+      const d = card.dataset;
+      const matches =
+        (!q || d.title!.includes(q) || d.company!.toLowerCase().includes(q) || d.location!.includes(q)) &&
+        (!co || d.company === co) &&
+        (!activeCat || d.cat === activeCat) &&
+        (!remoteOnly || d.remote === '1');
+      card.style.display = matches ? '' : 'none';
+      if (matches) shown++;
+    }
+    count.textContent = `${shown} role${shown === 1 ? '' : 's'}`;
+    empty.hidden = shown > 0;
+  }
+
+  search.addEventListener('input', apply);
+  company.addEventListener('change', apply);
+  remote.addEventListener('change', apply);
+  for (const pill of pills) {
+    pill.addEventListener('click', () => {
+      activeCat = pill.dataset.cat!;
+      pills.forEach((p) => p.classList.toggle('active', p === pill));
+      apply();
+    });
+  }
+</script>
