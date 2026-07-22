@@ -1,44 +1,67 @@
-# Kodex — Trust & Safety Jobs Board (MVP)
+# Kodex — Trust & Safety Jobs Board
 
-An auto-refreshed board of Trust & Safety, compliance, and policy roles aggregated
-from company career boards. Built with Astro; designed to mount on kodexglobal.com
-via Webflow Cloud.
+An auto-refreshed board of Trust & Safety, law-enforcement-response, and
+financial-crime roles aggregated from company career boards. Astro frontend,
+Sanity backend, weekly ingestion via GitHub Actions.
 
-## Run it
+## Architecture
+
+```
+GitHub Action (Mondays 08:00 UTC, or manual dispatch)
+  └─ scripts/ingest.mjs
+       ├─ pulls all open roles from watched companies
+       │    Greenhouse GET /v1/boards/{token}/jobs
+       │    Lever      GET /v0/postings/{token}?mode=json
+       │    Ashby      GET /posting-api/job-board/{token}
+       │    Workday    POST /wday/cxs/{tenant}/{site}/jobs (paginated, 20/page)
+       ├─ filters titles: INCLUDE regex minus EXCLUDE regex (see ingest.mjs)
+       ├─ upserts to Sanity by dedupeHash (firstSeen preserved)
+       └─ expires published roles that vanished from a fetched board
+  └─ hits Vercel deploy hook → static rebuild
+
+Astro build pulls published jobs from Sanity (GROQ) → static pages on Vercel.
+```
+
+## Moderation (Sanity Studio)
+
+Studio: **https://kodex-ts-jobs.sanity.studio/** (project `w6xju9i2`, dataset `production`).
+
+Jobs auto-publish on ingest. Moderate after the fact by setting `status`:
+
+| Status | Meaning |
+|---|---|
+| `published` | Live on the board (default for every ingested role) |
+| `expired` | Auto-set when the role disappears from the company's board; re-publishes if it reappears |
+| `killed` | Manually removed. Ingestion **never** resurrects a killed job |
+
+You can also edit titles/categories in Studio; note ingestion overwrites edited
+fields on published jobs at the next run (kill instead if a role shouldn't be listed).
+
+## Run locally
 
 ```sh
 npm install
-npm run ingest   # pulls live jobs from ATS APIs → src/data/jobs.json
-npm run dev      # http://localhost:4321
+# .env needs SANITY_PROJECT_ID, SANITY_DATASET, SANITY_WRITE_TOKEN (see 1Password/handoff)
+node scripts/ingest.mjs        # ingest → Sanity
+node scripts/ingest.mjs --local # …and also write src/data/jobs.json for debugging
+npm run dev                    # board at localhost:4321
+npm run build                  # static build (pulls from Sanity)
 ```
 
-## How it works
+## Watched companies
 
-1. **Ingestion** (`scripts/ingest.mjs`) pulls every open role from a curated
-   watch list of companies via their public ATS APIs (Greenhouse + Ashby;
-   Lever adapter included). No keys or scraping needed for these sources.
-2. **Filtering** narrows thousands of open roles to T&S: include-keyword rules
-   (trust & safety, moderation, policy, compliance, investigations, fraud/risk,
-   law enforcement response…) minus negative rules (pure engineering, sales,
-   credit/market risk…). Roles get a category, dedupe hash, and first/last-seen
-   timestamps.
-3. **Frontend** renders a filterable index plus one static page per job with
-   `JobPosting` JSON-LD for search engines. Apply links go to the company's
-   official careers page.
+Edit `SOURCES` in `scripts/ingest.mjs`. Workday entries need `{tenant, wdN, site}`
+from the company careers URL (e.g. `tmobile.wd1.myworkdayjobs.com/External`
+→ `{ tenant: 'tmobile', wdN: 1, site: 'External' }`).
 
-Current numbers: ~2,600 open roles across 15 watched companies → ~105 T&S roles.
+## CI secrets (GitHub repo settings)
 
-## MVP shortcuts (vs. the production plan)
+- `SANITY_WRITE_TOKEN` — editor token for the ingest script (required)
+- `VERCEL_DEPLOY_HOOK_URL` — Vercel deploy hook to rebuild after ingest (optional;
+  create under Vercel → Project → Settings → Git → Deploy Hooks)
 
-- **Data store:** local `src/data/jobs.json` instead of Sanity. Production writes
-  jobs as `pending` documents to Sanity for human review before publish.
-- **Publish flow:** auto-publish. Production adds the review gate.
-- **Refresh:** manual `npm run ingest`. Production runs it on a weekly cron
-  (GitHub Action) with stale-job expiry.
-- **Deploy:** local dev server. Production adds the Cloudflare adapter and mounts
-  at `kodexglobal.com/trust-and-safety-jobs` via Webflow Cloud.
+## Design
 
-## Editing the watch list
-
-Add companies to `SOURCES` in `scripts/ingest.mjs` with their ATS and board slug.
-Tune the include/exclude rules in the same file.
+Linear-style system (see `DESIGN-linear.app.md` in the project docs): near-black
+`#010102` canvas, surface ladder with hairline borders, single lavender accent
+`#5e6ad2`, Inter with negative display tracking.

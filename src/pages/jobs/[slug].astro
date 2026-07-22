@@ -1,11 +1,10 @@
 ---
 import Base from '../../layouts/Base.astro';
-import data from '../../data/jobs.json';
+import { getJobs } from '../../lib/jobs.js';
 
-export function getStaticPaths() {
-  return data.jobs
-    .filter((j) => j.status === 'published')
-    .map((job) => ({ params: { slug: job.slug }, props: { job } }));
+export async function getStaticPaths() {
+  const data = await getJobs();
+  return data.jobs.map((job) => ({ params: { slug: job.slug }, props: { job } }));
 }
 
 const { job } = Astro.props;
@@ -58,29 +57,33 @@ const jsonLd = {
 </Base>
 
 <style>
-  .job { max-width: 680px; padding-top: 40px; }
-  .back { font-size: 14px; color: var(--muted); }
-  .job-head { padding: 26px 0 6px; }
-  .company { font-size: 15px; font-weight: 600; color: var(--ember); margin: 0 0 6px; letter-spacing: 0.01em; }
-  h1 { font-size: clamp(26px, 4.5vw, 38px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.12; margin: 0 0 16px; }
-  .tags { display: flex; gap: 8px; }
+  .job { max-width: 680px; padding-top: 48px; }
+  .back { font-size: 14px; color: var(--ink-subtle); }
+  .back:hover { color: var(--ink); }
+  .job-head { padding: 28px 0 4px; }
+  .company { font-size: 13px; font-weight: 500; letter-spacing: 0.4px; color: var(--ink-subtle); margin: 0 0 8px; }
+  h1 {
+    font-size: clamp(28px, 4.5vw, 40px); font-weight: 600;
+    letter-spacing: -1px; line-height: 1.15; margin: 0 0 16px;
+  }
+  .tags { display: flex; gap: 6px; }
 
   .facts {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px;
-    background: var(--line); border: 1px solid var(--line); border-radius: 12px;
+    background: var(--hairline); border: 1px solid var(--hairline); border-radius: 12px;
     overflow: hidden; margin: 28px 0;
   }
-  .facts > div { background: var(--bg-0); padding: 14px 18px; }
-  dt { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); margin-bottom: 3px; }
-  dd { margin: 0; font-size: 15px; font-weight: 500; }
+  .facts > div { background: var(--surface-1); padding: 14px 18px; }
+  dt { font-size: 12px; letter-spacing: 0.4px; text-transform: uppercase; color: var(--ink-tertiary); margin-bottom: 3px; }
+  dd { margin: 0; font-size: 15px; font-weight: 500; color: var(--ink); }
   .cap { text-transform: capitalize; }
 
   .apply {
-    display: inline-block; font-size: 16px; font-weight: 600; color: #0a0f1f;
-    background: var(--ember); border-radius: 10px; padding: 13px 26px;
-    box-shadow: 0 0 24px rgba(255, 106, 61, 0.35);
-    transition: transform 0.15s ease;
+    display: inline-block; font-size: 14px; font-weight: 500; line-height: 1.2;
+    color: #ffffff; background: var(--primary);
+    border-radius: 8px; padding: 10px 16px;
+    transition: background 0.12s ease;
   }
-  .apply:hover { text-decoration: none; transform: translateY(-1px); }
-  .note { font-size: 13.5px; color: var(--faint); margin-top: 18px; max-width: 46ch; }
+  .apply:hover { background: var(--primary-hover); }
+  .note { font-size: 13px; color: var(--ink-tertiary); margin-top: 18px; max-width: 46ch; }
 </style>

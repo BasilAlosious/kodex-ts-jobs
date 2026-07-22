@@ -1,9 +1,14 @@
-// Ingestion: pull jobs from public ATS APIs for the seed company list,
-// keyword-filter to Trust & Safety roles, normalize, dedup, and write
-// src/data/jobs.json. Run with: npm run ingest
+// Ingestion: pull jobs from public ATS APIs for the watched company list,
+// filter to Trust & Safety / LE-response roles per Kodex's include/exclude
+// spec, normalize, dedup, and upsert into Sanity.
 //
-// MVP stores to local JSON; the production version writes to Sanity as
-// "pending" documents for human review before publish.
+//   node scripts/ingest.mjs            → writes to Sanity (needs .env / env vars)
+//   node scripts/ingest.mjs --local    → also writes src/data/jobs.json (dev)
+//
+// Status lifecycle in Sanity:
+//   published → live on the board (default for every ingested role)
+//   expired   → auto-set when a role disappears from a successfully-fetched board
+//   killed    → set by a human in Studio; ingestion never resurrects killed jobs
 
 import { createHash } from 'node:crypto';
 import { writeFile, readFile } from 'node:fs/promises';
@@ -11,11 +16,26 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const OUT = join(ROOT, 'src/data/jobs.json');
+const LOCAL_OUT = join(ROOT, 'src/data/jobs.json');
+const WRITE_LOCAL = process.argv.includes('--local');
+
+// Minimal .env loader (no deps).
+try {
+  const env = await readFile(join(ROOT, '.env'), 'utf8');
+  for (const line of env.split('\n')) {
+    const m = line.match(/^([A-Z_]+)=(.*)$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
+  }
+} catch { /* rely on real env vars (CI) */ }
+
+const SANITY_PROJECT_ID = process.env.SANITY_PROJECT_ID || 'w6xju9i2';
+const SANITY_DATASET = process.env.SANITY_DATASET || 'production';
+const SANITY_TOKEN = process.env.SANITY_WRITE_TOKEN;
+const SANITY_API = `https://${SANITY_PROJECT_ID}.api.sanity.io/v2024-01-01`;
 
 // ---------------------------------------------------------------------------
-// Seed sources. John's list replaces/extends this — every entry is a company
-// board we watch weekly, not a blanket scrape.
+// Watched companies. Add entries here — this is the whole "source list".
+// workday entries need { tenant, wdN, site } from the company's careers URL.
 // ---------------------------------------------------------------------------
 const SOURCES = [
   { ats: 'greenhouse', slug: 'discord', company: 'Discord' },
@@ -26,88 +46,76 @@ const SOURCES = [
   { ats: 'greenhouse', slug: 'twitch', company: 'Twitch' },
   { ats: 'greenhouse', slug: 'robinhood', company: 'Robinhood' },
   { ats: 'greenhouse', slug: 'pinterest', company: 'Pinterest' },
-  { ats: 'greenhouse', slug: 'duolingo', company: 'Duolingo' },
   { ats: 'ashby', slug: 'openai', company: 'OpenAI' },
   { ats: 'ashby', slug: 'ramp', company: 'Ramp' },
   { ats: 'ashby', slug: 'notion', company: 'Notion' },
   { ats: 'ashby', slug: 'sardine', company: 'Sardine' },
   { ats: 'ashby', slug: 'persona', company: 'Persona' },
   { ats: 'ashby', slug: 'cinder', company: 'Cinder' },
+  { ats: 'workday', tenant: 'tmobile', wdN: 1, site: 'External', company: 'T-Mobile' },
+  { ats: 'workday', tenant: 'verizon', wdN: 12, site: 'verizon-careers', company: 'Verizon' },
+  { ats: 'workday', tenant: 'comcast', wdN: 5, site: 'Comcast_Careers', company: 'Comcast' },
+  { ats: 'workday', tenant: 'paypal', wdN: 1, site: 'jobs', company: 'PayPal' },
 ];
 
 // ---------------------------------------------------------------------------
-// Stage 2 filtering: what counts as a T&S role.
+// Kodex filter spec (John, 2026-07). INCLUDE terms are ORed; "abuse/fraud/
+// threat investigat" = any of those words within reach of "investigat";
+// "BSA/AML" = either token, word-bounded. EXCLUDE wins over INCLUDE.
 // ---------------------------------------------------------------------------
-const INCLUDE = [
-  /trust\s*(&|and)?\s*safety/i,
-  /\bcontent (moderat|policy|review)/i,
-  /\bmoderat(ion|or)/i,
-  /\bplatform (integrity|policy|abuse)/i,
-  /\b(fraud|abuse|risk) (analyst|investigat|operations|ops|specialist|manager|lead)/i,
-  /\bcompliance\b/i,
-  /\blaw enforcement (response|relations|outreach)/i,
-  /\bpolicy (enforcement|specialist|manager|analyst|lead)/i,
-  /\binvestigat(or|ions)\b/i,
-  /\bsanctions\b/i,
-  /\b(aml|bsa|kyc)\b/i,
-  /\bchild safety\b/i,
-  /\bthreat (intelligence|analyst|investigat)/i,
-  /\bintegrity\b/i,
-  /\bregulatory\b/i,
-  /\blegal operations\b/i,
-];
+const INCLUDE = new RegExp(
+  [
+    'law enforcement',
+    'subpoena',
+    'disclosure',
+    'legal process',
+    'records request',
+    '\\bLERT\\b',
+    'financial crime',
+    'insider risk',
+    'investigator',
+    '(abuse|fraud|threat).{0,24}investigat',
+    'trust (and|&) safety',
+    'platform integrity',
+    'content moderation',
+    '\\b(BSA|AML)\\b',
+    'sanctions',
+  ].join('|'),
+  'i',
+);
 
-// Roles the keywords over-catch: pure engineering, sales, finance-risk, etc.
-const EXCLUDE = [
-  /\b(software|backend|frontend|full[- ]?stack|machine learning|ml|data|infrastructure|platform|site reliability|security) engineer/i,
-  /\bengineering manager/i,
-  /\b(account|sales) (executive|manager|director)/i,
-  /\bcredit risk\b/i,
-  /\bmarket risk\b/i,
-  /\btax\b/i,
-  /\baccountant\b/i,
-  /\bhardware\b/i,
-];
+const EXCLUDE = /software engineer|data scientist|designer|developer|counsel|attorney/i;
 
 const CATEGORY_RULES = [
-  { cat: 'Trust & Safety Ops', re: /trust\s*(&|and)?\s*safety|platform (integrity|abuse)|\bintegrity\b/i },
-  { cat: 'Content Moderation', re: /moderat|content (review|policy)|child safety/i },
-  { cat: 'Policy', re: /\bpolicy\b/i },
-  { cat: 'Law Enforcement Response', re: /law enforcement|\bsubpoena|\ble (response|relations)\b/i },
-  { cat: 'Fraud & Risk', re: /fraud|abuse|risk|threat/i },
-  { cat: 'Compliance', re: /compliance|sanctions|\baml\b|\bbsa\b|\bkyc\b|regulatory|legal operations/i },
+  { cat: 'Law Enforcement Response', re: /law enforcement|subpoena|disclosure|legal process|records request|\bLERT\b/i },
+  { cat: 'Financial Crime & AML', re: /financial crime|\b(BSA|AML)\b/i },
+  { cat: 'Sanctions', re: /sanctions/i },
+  { cat: 'Insider Risk', re: /insider risk/i },
+  { cat: 'Content Moderation', re: /content moderation|moderat/i },
+  { cat: 'Trust & Safety', re: /trust (and|&) safety|platform integrity/i },
   { cat: 'Investigations', re: /investigat/i },
 ];
 
-function categorize(title) {
-  for (const { cat, re } of CATEGORY_RULES) if (re.test(title)) return cat;
-  return 'Trust & Safety Ops';
-}
+const categorize = (title) =>
+  (CATEGORY_RULES.find(({ re }) => re.test(title)) || { cat: 'Trust & Safety' }).cat;
 
-function isTsRole(title) {
-  return INCLUDE.some((re) => re.test(title)) && !EXCLUDE.some((re) => re.test(title));
-}
+const isMatch = (title) => INCLUDE.test(title) && !EXCLUDE.test(title);
 
-function slugify(s) {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-}
+const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
-function dedupeHash(job) {
-  return createHash('sha1')
+const looksRemote = (location) => /remote|anywhere|distributed/i.test(location || '');
+
+const dedupeHash = (job) =>
+  createHash('sha1')
     .update([job.company, job.title, job.location, job.applyUrl].join('|').toLowerCase())
     .digest('hex')
     .slice(0, 12);
-}
-
-function looksRemote(location) {
-  return /remote|anywhere|distributed/i.test(location || '');
-}
 
 // ---------------------------------------------------------------------------
 // Adapters — each returns [{ title, location, applyUrl, postedAt, excerpt }]
 // ---------------------------------------------------------------------------
-async function fetchJson(url) {
-  const res = await fetch(url, { headers: { accept: 'application/json' } });
+async function fetchJson(url, init) {
+  const res = await fetch(url, { headers: { accept: 'application/json', ...init?.headers }, ...init });
   if (!res.ok) throw new Error(`${res.status} ${url}`);
   return res.json();
 }
@@ -123,16 +131,6 @@ const adapters = {
       excerpt: '',
     }));
   },
-  async ashby({ slug }) {
-    const data = await fetchJson(`https://api.ashbyhq.com/posting-api/job-board/${slug}`);
-    return (data.jobs || []).map((j) => ({
-      title: j.title,
-      location: j.location || '',
-      applyUrl: j.jobUrl || j.applyUrl,
-      postedAt: j.publishedAt || null,
-      excerpt: j.department ? `${j.department}${j.team && j.team !== j.department ? ` · ${j.team}` : ''}` : '',
-    }));
-  },
   async lever({ slug }) {
     const data = await fetchJson(`https://api.lever.co/v0/postings/${slug}?mode=json`);
     return (Array.isArray(data) ? data : []).map((j) => ({
@@ -143,25 +141,95 @@ const adapters = {
       excerpt: j.categories?.team || '',
     }));
   },
+  async ashby({ slug }) {
+    const data = await fetchJson(`https://api.ashbyhq.com/posting-api/job-board/${slug}`);
+    return (data.jobs || []).map((j) => ({
+      title: j.title,
+      location: j.location || '',
+      applyUrl: j.jobUrl || j.applyUrl,
+      postedAt: j.publishedAt || null,
+      excerpt: j.department ? `${j.department}${j.team && j.team !== j.department ? ` · ${j.team}` : ''}` : '',
+    }));
+  },
+  // POST + offset pagination per Kodex spec; capped to stay polite on the
+  // giant boards (T-Mobile lists ~2k roles).
+  async workday({ tenant, wdN, site }) {
+    const base = `https://${tenant}.wd${wdN}.myworkdayjobs.com`;
+    const url = `${base}/wday/cxs/${tenant}/${site}/jobs`;
+    const out = [];
+    const LIMIT = 20; // Workday hard-caps page size at 20
+    const MAX = 2400;
+    let total = Infinity; // only the offset=0 response carries a real total
+    for (let offset = 0; offset < Math.min(total, MAX); offset += LIMIT) {
+      const data = await fetchJson(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ limit: LIMIT, offset, searchText: '', appliedFacets: {} }),
+      });
+      if (offset === 0 && Number.isFinite(data.total) && data.total > 0) total = data.total;
+      const page = data.jobPostings || [];
+      if (page.length === 0) break;
+      for (const j of page) {
+        if (!j.title || !j.externalPath) continue;
+        out.push({
+          title: j.title,
+          location: j.locationsText || '',
+          applyUrl: `${base}/en-US/${site}${j.externalPath.startsWith('/') ? '' : '/'}${j.externalPath.replace(/^\/[^/]+/, '')}`,
+          postedAt: null, // Workday exposes "Posted N days ago" text only
+          excerpt: j.postedOn || '',
+        });
+      }
+      if (page.length < LIMIT) break;
+    }
+    return out;
+  },
 };
 
 // ---------------------------------------------------------------------------
+// Sanity helpers (plain HTTP, no client dependency)
+// ---------------------------------------------------------------------------
+async function sanityQuery(groq) {
+  const res = await fetchJson(`${SANITY_API}/data/query/${SANITY_DATASET}?query=${encodeURIComponent(groq)}`, {
+    headers: SANITY_TOKEN ? { authorization: `Bearer ${SANITY_TOKEN}` } : {},
+  });
+  return res.result;
+}
+
+async function sanityMutate(mutations) {
+  const CHUNK = 100;
+  for (let i = 0; i < mutations.length; i += CHUNK) {
+    const res = await fetch(`${SANITY_API}/data/mutate/${SANITY_DATASET}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${SANITY_TOKEN}` },
+      body: JSON.stringify({ mutations: mutations.slice(i, i + CHUNK) }),
+    });
+    if (!res.ok) throw new Error(`Sanity mutate failed: ${res.status} ${await res.text()}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 async function run() {
+  if (!SANITY_TOKEN) {
+    console.error('SANITY_WRITE_TOKEN missing (set it in .env or CI secrets)');
+    process.exit(1);
+  }
+
   const now = new Date().toISOString();
-  let previous = [];
-  try {
-    previous = JSON.parse(await readFile(OUT, 'utf8')).jobs || [];
-  } catch { /* first run */ }
-  const previousByHash = new Map(previous.map((j) => [j.dedupeHash, j]));
+  const existing = await sanityQuery(
+    '*[_type == "job"]{_id, dedupeHash, firstSeen, status, company}',
+  );
+  const byHash = new Map(existing.map((d) => [d.dedupeHash, d]));
 
   const jobs = [];
   const stats = [];
+  const succeededCompanies = new Set();
 
   for (const source of SOURCES) {
     try {
       const raw = await adapters[source.ats](source);
-      const matched = raw.filter((j) => j.title && j.applyUrl && isTsRole(j.title));
-      stats.push(`${source.company.padEnd(12)} ${source.ats.padEnd(10)} ${String(raw.length).padStart(4)} open → ${matched.length} T&S`);
+      const matched = raw.filter((j) => j.title && j.applyUrl && isMatch(j.title));
+      succeededCompanies.add(source.company);
+      stats.push(`${source.company.padEnd(12)} ${source.ats.padEnd(10)} ${String(raw.length).padStart(4)} open → ${matched.length} match`);
       for (const j of matched) {
         const job = {
           company: source.company,
@@ -175,11 +243,6 @@ async function run() {
           excerpt: j.excerpt,
         };
         job.dedupeHash = dedupeHash(job);
-        const prev = previousByHash.get(job.dedupeHash);
-        job.firstSeen = prev?.firstSeen || now;
-        job.lastSeen = now;
-        // MVP: auto-publish. Production: status starts "pending" in Sanity.
-        job.status = prev?.status || 'published';
         job.slug = `${slugify(source.company)}-${slugify(j.title)}-${job.dedupeHash.slice(0, 6)}`;
         jobs.push(job);
       }
@@ -188,16 +251,48 @@ async function run() {
     }
   }
 
-  // Dedup within this run (same role listed twice on one board).
+  // Dedup within the run.
   const seen = new Set();
   const deduped = jobs.filter((j) => (seen.has(j.dedupeHash) ? false : seen.add(j.dedupeHash)));
 
-  deduped.sort((a, b) => (b.postedAt || '').localeCompare(a.postedAt || ''));
+  // Upsert. killed docs are left untouched entirely; expired docs that
+  // reappear flip back to published.
+  const mutations = [];
+  let created = 0, updated = 0, skippedKilled = 0;
+  for (const job of deduped) {
+    const prev = byHash.get(job.dedupeHash);
+    if (prev?.status === 'killed') { skippedKilled++; continue; }
+    mutations.push({
+      createOrReplace: {
+        _id: `job-${job.dedupeHash}`,
+        _type: 'job',
+        ...job,
+        firstSeen: prev?.firstSeen || now,
+        lastSeen: now,
+        status: 'published',
+      },
+    });
+    prev ? updated++ : created++;
+  }
 
-  await writeFile(OUT, JSON.stringify({ generatedAt: now, jobs: deduped }, null, 2));
+  // Expire published jobs that vanished from a board we successfully fetched.
+  const liveHashes = new Set(deduped.map((j) => j.dedupeHash));
+  let expired = 0;
+  for (const doc of existing) {
+    if (doc.status === 'published' && !liveHashes.has(doc.dedupeHash) && succeededCompanies.has(doc.company)) {
+      mutations.push({ patch: { id: doc._id, set: { status: 'expired', lastSeen: now } } });
+      expired++;
+    }
+  }
+
+  await sanityMutate(mutations);
+
+  if (WRITE_LOCAL) {
+    await writeFile(LOCAL_OUT, JSON.stringify({ generatedAt: now, jobs: deduped.map((j) => ({ ...j, firstSeen: byHash.get(j.dedupeHash)?.firstSeen || now, lastSeen: now, status: 'published' })) }, null, 2));
+  }
 
   console.log(stats.join('\n'));
-  console.log(`\n${deduped.length} T&S roles written to src/data/jobs.json`);
+  console.log(`\nSanity: ${created} created, ${updated} updated, ${expired} expired, ${skippedKilled} kept killed`);
 }
 
 run();

@@ -1,0 +1,30 @@
+name: Refresh jobs
+
+on:
+  schedule:
+    - cron: '0 8 * * 1' # Mondays 08:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Ingest jobs into Sanity
+        env:
+          SANITY_PROJECT_ID: w6xju9i2
+          SANITY_DATASET: production
+          SANITY_WRITE_TOKEN: ${{ secrets.SANITY_WRITE_TOKEN }}
+        run: node scripts/ingest.mjs
+      - name: Trigger Vercel rebuild
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -n "$HOOK" ]; then
+            curl -fsS -X POST "$HOOK" > /dev/null && echo "Vercel rebuild triggered"
+          else
+            echo "VERCEL_DEPLOY_HOOK_URL not set — skipping rebuild trigger"
+          fi
