@@ -6,7 +6,7 @@ const DATASET = import.meta.env.SANITY_DATASET || 'production';
 
 const GROQ = `*[_type == "job" && status == "published"] | order(coalesce(postedAt, firstSeen) desc) {
   title, company, location, remote, roleCategory, applyUrl, source,
-  postedAt, firstSeen, lastSeen, excerpt, slug, dedupeHash
+  postedAt, firstSeen, lastSeen, excerpt, description, slug, dedupeHash
 }`;
 
 let cache = null;

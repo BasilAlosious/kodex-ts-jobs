@@ -9,6 +9,15 @@ export async function getStaticPaths() {
 
 const { job } = Astro.props;
 
+// Split the plaintext description into renderable blocks (bullets vs paragraphs).
+const blocks = (job.description || '')
+  .split('\n')
+  .map((line) => line.trim())
+  .filter(Boolean)
+  .map((line) => (line.startsWith('•') ? { type: 'li', text: line.replace(/^•\s*/, '') } : { type: 'p', text: line }));
+const hasDescription = blocks.length > 0;
+const isLong = (job.description || '').length > 420;
+
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'JobPosting',
@@ -20,6 +29,7 @@ const jsonLd = {
     address: { '@type': 'PostalAddress', addressLocality: job.location },
   },
   ...(job.remote ? { jobLocationType: 'TELECOMMUTE' } : {}),
+  ...(job.description ? { description: job.description } : {}),
   employmentType: 'FULL_TIME',
   directApply: false,
   url: new URL(`/jobs/${job.slug}/`, Astro.site).href,
@@ -45,6 +55,21 @@ const jsonLd = {
       <div><dt>Listed</dt><dd>{new Date(job.postedAt || job.firstSeen).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</dd></div>
       <div><dt>Source</dt><dd class="cap">{job.source}</dd></div>
     </dl>
+
+    {hasDescription && (
+      <section class="description">
+        <h2>About this role</h2>
+        <div class={`desc-body${isLong ? ' clamped' : ''}`} id="desc">
+          {blocks.map((b) => (b.type === 'li' ? <p class="li">{b.text}</p> : <p>{b.text}</p>))}
+        </div>
+        {isLong && (
+          <button type="button" class="read-more" id="readMore" aria-expanded="false" aria-controls="desc">
+            Read more
+          </button>
+        )}
+        <p class="src-note">Excerpt from {job.company}'s posting. Read the full description and apply below.</p>
+      </section>
+    )}
 
     <a class="apply" href={job.applyUrl} target="_blank" rel="noopener">
       Apply at {job.company} ↗
@@ -78,6 +103,26 @@ const jsonLd = {
   dd { margin: 0; font-size: 15px; font-weight: 500; color: var(--ink); }
   .cap { text-transform: capitalize; }
 
+  .description { margin: 28px 0; }
+  .description h2 {
+    font-size: 18px; font-weight: 600; letter-spacing: -0.3px; margin: 0 0 14px;
+  }
+  .desc-body { position: relative; }
+  .desc-body p { font-size: 15px; line-height: 1.6; color: var(--ink-muted); margin: 0 0 12px; }
+  .desc-body p.li { padding-left: 18px; position: relative; }
+  .desc-body p.li::before { content: '•'; position: absolute; left: 4px; color: var(--ink-subtle); }
+  .desc-body.clamped {
+    max-height: 240px; overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, #000 65%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 65%, transparent 100%);
+  }
+  .read-more {
+    font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
+    color: var(--primary); background: none; border: none; padding: 4px 0; margin-top: 2px;
+  }
+  .read-more:hover { color: var(--primary-hover); }
+  .src-note { font-size: 12px; color: var(--ink-tertiary); margin: 10px 0 0; }
+
   .apply {
     display: inline-block; font-size: 14px; font-weight: 500; line-height: 1.2;
     color: #ffffff; background: var(--primary);
@@ -87,3 +132,15 @@ const jsonLd = {
   .apply:hover { background: var(--primary-hover); }
   .note { font-size: 13px; color: var(--ink-tertiary); margin-top: 18px; max-width: 46ch; }
 </style>
+
+<script>
+  const btn = document.getElementById('readMore');
+  const desc = document.getElementById('desc');
+  if (btn && desc) {
+    btn.addEventListener('click', () => {
+      const expanded = desc.classList.toggle('clamped') === false;
+      btn.textContent = expanded ? 'Show less' : 'Read more';
+      btn.setAttribute('aria-expanded', String(expanded));
+    });
+  }
+</script>

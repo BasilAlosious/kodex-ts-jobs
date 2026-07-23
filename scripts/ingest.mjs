@@ -112,7 +112,7 @@ const dedupeHash = (job) =>
     .slice(0, 12);
 
 // ---------------------------------------------------------------------------
-// Adapters — each returns [{ title, location, applyUrl, postedAt, excerpt }]
+// Adapters — each returns [{ title, location, applyUrl, postedAt, excerpt, description }]
 // ---------------------------------------------------------------------------
 async function fetchJson(url, init) {
   const res = await fetch(url, { headers: { accept: 'application/json', ...init?.headers }, ...init });
@@ -120,15 +120,34 @@ async function fetchJson(url, init) {
   return res.json();
 }
 
+// Turn ATS description HTML into clean plaintext with paragraph breaks.
+// Handles double-encoded entities (Greenhouse ships `&lt;h2&gt;` in JSON).
+const DESC_CAP = 2500;
+function htmlToText(html) {
+  if (!html) return '';
+  const decode = (t) =>
+    t
+      .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&rsquo;/g, "'")
+      .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
+  let s = decode(String(html));
+  s = s.replace(/<\/(p|div|li|h[1-6]|ul|ol|tr)>/gi, '\n').replace(/<br\s*\/?>/gi, '\n');
+  s = s.replace(/<li[^>]*>/gi, '• ').replace(/<[^>]+>/g, '');
+  s = decode(s);
+  s = s.replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  return s.length > DESC_CAP ? s.slice(0, DESC_CAP).replace(/\s+\S*$/, '') + '…' : s;
+}
+
 const adapters = {
   async greenhouse({ slug }) {
-    const data = await fetchJson(`https://boards-api.greenhouse.io/v1/boards/${slug}/jobs`);
+    const data = await fetchJson(`https://boards-api.greenhouse.io/v1/boards/${slug}/jobs?content=true`);
     return (data.jobs || []).map((j) => ({
       title: j.title,
       location: j.location?.name || '',
       applyUrl: j.absolute_url,
       postedAt: j.updated_at || null,
       excerpt: '',
+      description: htmlToText(j.content),
     }));
   },
   async lever({ slug }) {
@@ -139,6 +158,7 @@ const adapters = {
       applyUrl: j.hostedUrl,
       postedAt: j.createdAt ? new Date(j.createdAt).toISOString() : null,
       excerpt: j.categories?.team || '',
+      description: htmlToText(j.descriptionPlain || j.description),
     }));
   },
   async ashby({ slug }) {
@@ -149,6 +169,7 @@ const adapters = {
       applyUrl: j.jobUrl || j.applyUrl,
       postedAt: j.publishedAt || null,
       excerpt: j.department ? `${j.department}${j.team && j.team !== j.department ? ` · ${j.team}` : ''}` : '',
+      description: htmlToText(j.descriptionPlain || j.descriptionHtml),
     }));
   },
   // POST + offset pagination per Kodex spec; capped to stay polite on the
@@ -177,6 +198,7 @@ const adapters = {
           applyUrl: `${base}/en-US/${site}${j.externalPath.startsWith('/') ? '' : '/'}${j.externalPath.replace(/^\/[^/]+/, '')}`,
           postedAt: null, // Workday exposes "Posted N days ago" text only
           excerpt: j.postedOn || '',
+          description: '', // not available in the Workday list endpoint
         });
       }
       if (page.length < LIMIT) break;
@@ -241,6 +263,7 @@ async function run() {
           source: source.ats,
           postedAt: j.postedAt,
           excerpt: j.excerpt,
+          description: j.description || '',
         };
         job.dedupeHash = dedupeHash(job);
         job.slug = `${slugify(source.company)}-${slugify(j.title)}-${job.dedupeHash.slice(0, 6)}`;
