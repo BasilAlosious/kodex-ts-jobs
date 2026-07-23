@@ -19,12 +19,12 @@ jobs:
           SANITY_DATASET: production
           SANITY_WRITE_TOKEN: ${{ secrets.SANITY_WRITE_TOKEN }}
         run: node scripts/ingest.mjs
-      - name: Trigger Vercel rebuild
+      - name: Trigger Webflow Cloud rebuild
         env:
-          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+          HOOK: ${{ secrets.DEPLOY_HOOK_URL }}
         run: |
           if [ -n "$HOOK" ]; then
-            curl -fsS -X POST "$HOOK" > /dev/null && echo "Vercel rebuild triggered"
+            curl -fsS -X POST "$HOOK" > /dev/null && echo "Webflow Cloud rebuild triggered"
           else
-            echo "VERCEL_DEPLOY_HOOK_URL not set — skipping rebuild trigger"
+            echo "DEPLOY_HOOK_URL not set — skipping rebuild trigger"
           fi
