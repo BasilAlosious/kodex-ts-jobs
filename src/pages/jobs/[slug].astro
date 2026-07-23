@@ -1,14 +1,12 @@
 ---
-export const prerender = true;
 import Base from '../../layouts/Base.astro';
 import { getJobs } from '../../lib/jobs.js';
 
-export async function getStaticPaths() {
-  const data = await getJobs();
-  return data.jobs.map((job) => ({ params: { slug: job.slug }, props: { job } }));
+const data = await getJobs();
+const job = data.jobs.find((j) => j.slug === Astro.params.slug);
+if (!job) {
+  return new Response('Not found', { status: 404 });
 }
-
-const { job } = Astro.props;
 const root = import.meta.env.BASE_URL.replace(/\/$/, '');
 const home = root || '/';
 const canonical = new URL(`${root}/jobs/${job.slug}`, Astro.site).href;

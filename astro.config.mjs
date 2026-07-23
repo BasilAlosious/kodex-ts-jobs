@@ -12,9 +12,9 @@ const base = `/${(process.env.CLOUD_MOUNT_PATH || '').replace(/^\/|\/$/g, '')}/`
 export default defineConfig({
   site: 'https://kodexglobal.com',
   base,
-  // Webflow Cloud canonicalizes the mount path to NO trailing slash (301).
-  // Match that so we don't fight it into a redirect loop.
-  trailingSlash: 'never',
+  // Webflow Cloud's edge canonicalizes URLs to NO trailing slash before they
+  // reach the worker; pages are SSR (no prerender) so the worker answers any
+  // form directly — default trailingSlash 'ignore' is what we want.
   output: 'server',
   adapter: cloudflare({ platformProxy: { enabled: true } }),
   compressHTML: true,
