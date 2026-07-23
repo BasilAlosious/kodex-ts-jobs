@@ -1,7 +1,9 @@
 ---
+export const prerender = true;
 import Base from '../layouts/Base.astro';
 import { getJobs } from '../lib/jobs.js';
 
+const base = import.meta.env.BASE_URL;
 const data = await getJobs();
 const jobs = data.jobs;
 const companies = [...new Set(jobs.map((j) => j.company))].sort();
@@ -50,7 +52,7 @@ const updated = new Date(data.generatedAt).toLocaleDateString('en-US', {
     {jobs.map((job) => (
       <a
         class="job-card"
-        href={`/jobs/${job.slug}/`}
+        href={`${base}jobs/${job.slug}/`}
         data-title={job.title.toLowerCase()}
         data-company={job.company}
         data-location={job.location.toLowerCase()}

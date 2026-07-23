@@ -1,7 +1,18 @@
 import { defineConfig } from 'astro/config';
+import cloudflare from '@astrojs/cloudflare';
 
-// MVP runs at root. When mounted on Webflow Cloud, set base to the mount
-// path (e.g. '/trust-and-safety-jobs') and add the Cloudflare adapter.
+// Webflow Cloud serves the app from a mount path (e.g. /trust-and-safety-jobs)
+// and injects it as CLOUD_MOUNT_PATH at build time. Locally it's unset → root.
+// All pages are prerendered (content comes from Sanity at build time), so the
+// Cloudflare worker just serves static output.
+// Normalize to exactly one trailing slash so BASE_URL joins cleanly with
+// manual hrefs (Webflow may inject the mount path with or without a slash).
+const base = `/${(process.env.CLOUD_MOUNT_PATH || '').replace(/^\/|\/$/g, '')}/`.replace(/\/\/+/g, '/');
+
 export default defineConfig({
   site: 'https://kodexglobal.com',
+  base,
+  output: 'server',
+  adapter: cloudflare({ platformProxy: { enabled: true } }),
+  compressHTML: true,
 });
