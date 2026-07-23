@@ -9,8 +9,9 @@ export async function getStaticPaths() {
 }
 
 const { job } = Astro.props;
-const base = import.meta.env.BASE_URL;
-const canonical = new URL(`${base}jobs/${job.slug}/`, Astro.site).href;
+const root = import.meta.env.BASE_URL.replace(/\/$/, '');
+const home = root || '/';
+const canonical = new URL(`${root}/jobs/${job.slug}`, Astro.site).href;
 
 // Split the plaintext description into renderable blocks (bullets vs paragraphs).
 const blocks = (job.description || '')
@@ -42,7 +43,7 @@ const jsonLd = {
   <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} slot="head" />
 
   <article class="job">
-    <a class="back" href={base}>← All roles</a>
+    <a class="back" href={home}>← All roles</a>
     <div class="job-head">
       <p class="company">{job.company}</p>
       <h1>{job.title}</h1>
