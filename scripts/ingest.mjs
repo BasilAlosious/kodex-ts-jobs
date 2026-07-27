@@ -84,7 +84,12 @@ const INCLUDE = new RegExp(
   'i',
 );
 
-const EXCLUDE = /software engineer|data scientist|designer|developer|counsel|attorney/i;
+// EXCLUDE wins over INCLUDE. Beyond John's original engineering/legal terms,
+// we filter non-operational job functions that sit on T&S teams but aren't T&S
+// work (marketing, recruiting, sales, finance). Kept surgical: "finance
+// business partner" (the exact title) not bare "finance", which would wrongly
+// kill legitimate financial-crime roles.
+const EXCLUDE = /software engineer|data scientist|designer|developer|counsel|attorney|marketing|recruit|sourcer|\bsales\b|account executive|business development|communications|finance business partner/i;
 
 const CATEGORY_RULES = [
   { cat: 'Law Enforcement Response', re: /law enforcement|subpoena|disclosure|legal process|records request|\bLERT\b/i },
