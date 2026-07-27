@@ -89,7 +89,7 @@ const INCLUDE = new RegExp(
 // work (marketing, recruiting, sales, finance). Kept surgical: "finance
 // business partner" (the exact title) not bare "finance", which would wrongly
 // kill legitimate financial-crime roles.
-const EXCLUDE = /software engineer|data scientist|designer|developer|counsel|attorney|marketing|recruit|sourcer|\bsales\b|account executive|business development|communications|finance business partner/i;
+const EXCLUDE = /software engineer|data scientist|designer|developer|counsel|attorney|marketing|recruit|sourcer|\bsales\b|account executive|business development|communications|finance business partner|product manager/i;
 
 const CATEGORY_RULES = [
   { cat: 'Law Enforcement Response', re: /law enforcement|subpoena|disclosure|legal process|records request|\bLERT\b/i },
