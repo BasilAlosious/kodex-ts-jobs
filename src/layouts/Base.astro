@@ -49,7 +49,7 @@ const home = root || '/';
     <script is:inline>
       hbspt.forms.create({
         portalId: "44165336",
-        formId: "807b4092-1aaf-4392-a943-c17ec99e80ed",
+        formId: "58e8848d-5d6b-4e0f-a777-bd4a5062635e",
         region: "na1",
         target: "#hs-newsletter",
       });
@@ -117,10 +117,49 @@ const home = root || '/';
     font-size: 15px; line-height: 1.5; color: var(--ink-muted);
     margin: 0 0 16px; letter-spacing: -0.1px;
   }
-  /* HubSpot renders the form in a cross-origin iframe, so its internals must
-     be themed in the HubSpot form editor, not here. */
-  .hs-newsletter { min-height: 120px; }
   .footer-note { margin: 0; }
+
+  /* HubSpot form → Linear dark theme. The form renders inline (the classes
+     below are real page elements), so these overrides apply. !important is
+     needed to beat HubSpot's own inline/stylesheet rules. */
+  #hs-newsletter .hs-form-field { margin-bottom: 12px; }
+  #hs-newsletter .hs-form-field > label {
+    display: block; font-size: 12px !important; font-weight: 500 !important;
+    color: var(--ink-subtle) !important; margin-bottom: 6px;
+  }
+  #hs-newsletter .hs-form-required { color: var(--primary); margin-left: 2px; }
+  #hs-newsletter .hs-input {
+    width: 100% !important; max-width: 340px; box-sizing: border-box;
+    font: inherit !important; font-size: 14px !important; color: var(--ink) !important;
+    background: var(--surface-1) !important; border: 1px solid var(--hairline-strong) !important;
+    border-radius: 8px !important; padding: 9px 12px !important; box-shadow: none !important;
+  }
+  #hs-newsletter .hs-input:focus {
+    outline: 2px solid var(--primary-focus) !important; outline-offset: 0;
+    border-color: transparent !important;
+  }
+  #hs-newsletter .hs-input::placeholder { color: var(--ink-tertiary); }
+  #hs-newsletter .hs-input.error,
+  #hs-newsletter .hs-input.invalid { border-color: #ff8f8f !important; }
+  #hs-newsletter .hs-button {
+    font: inherit !important; font-size: 14px !important; font-weight: 500 !important;
+    cursor: pointer; color: #fff !important; background: var(--primary) !important;
+    border: none !important; border-radius: 8px !important; padding: 10px 18px !important;
+    margin-top: 4px; box-shadow: none !important; text-shadow: none !important;
+    transition: background 0.12s ease;
+  }
+  #hs-newsletter .hs-button:hover { background: var(--primary-hover) !important; }
+  #hs-newsletter .hs-error-msg,
+  #hs-newsletter .hs-error-msgs label { color: #ff8f8f !important; font-size: 12px !important; }
+  #hs-newsletter .legal-consent-container,
+  #hs-newsletter .hs-richtext,
+  #hs-newsletter .hs-richtext p {
+    font-size: 11px !important; color: var(--ink-tertiary) !important; line-height: 1.4;
+  }
+  #hs-newsletter .legal-consent-container a,
+  #hs-newsletter .hs-richtext a { color: var(--ink-muted); }
+  #hs-newsletter .submitted-message,
+  #hs-newsletter .hs-main-font-element { color: var(--ink-muted) !important; font-size: 14px !important; }
 
   .pill {
     display: inline-flex; align-items: center;
