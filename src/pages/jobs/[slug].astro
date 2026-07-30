@@ -34,10 +34,16 @@ const jsonLd = {
   ...(job.description ? { description: job.description } : {}),
   employmentType: 'FULL_TIME',
   directApply: false,
+  // Keep listings from reading as stale: valid 60 days from when we first saw it.
+  validThrough: new Date(new Date(job.postedAt || job.firstSeen).getTime() + 60 * 864e5).toISOString(),
   url: canonical,
 };
 ---
-<Base title={`${job.title} at ${job.company} — Kodex Community Job Board`} description={`${job.title} at ${job.company} (${job.location}). Found via the Kodex Community Job Board.`}>
+<Base
+  title={`${job.title} at ${job.company} — Kodex Community Job Board`}
+  description={`${job.title} at ${job.company} (${job.location}). Found via the Kodex Community Job Board.`}
+  canonical={canonical}
+>
   <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} slot="head" />
 
   <article class="job">

@@ -10,7 +10,9 @@ import cloudflare from '@astrojs/cloudflare';
 const base = `/${(process.env.CLOUD_MOUNT_PATH || '').replace(/^\/|\/$/g, '')}/`.replace(/\/\/+/g, '/');
 
 export default defineConfig({
-  site: 'https://kodexglobal.com',
+  // Live host is www; keep canonical / sitemap / JSON-LD URLs on the same host
+  // Google indexes to avoid www/non-www duplicate-URL dilution.
+  site: 'https://www.kodexglobal.com',
   base,
   // Webflow Cloud's edge canonicalizes URLs to NO trailing slash before they
   // reach the worker; pages are SSR (no prerender) so the worker answers any
