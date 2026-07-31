@@ -4,8 +4,8 @@
 const PROJECT_ID = import.meta.env.SANITY_PROJECT_ID || 'w6xju9i2';
 const DATASET = import.meta.env.SANITY_DATASET || 'production';
 
-const GROQ = `*[_type == "job" && status == "published"] | order(coalesce(postedAt, firstSeen) desc) {
-  title, company, location, remote, roleCategory, applyUrl, source,
+const GROQ = `*[_type == "job" && status == "published"] | order(coalesce(featured, false) desc, coalesce(postedAt, firstSeen) desc) {
+  title, company, location, remote, roleCategory, applyUrl, source, featured,
   postedAt, firstSeen, lastSeen, excerpt, description, slug, dedupeHash
 }`;
 

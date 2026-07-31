@@ -243,7 +243,7 @@ async function run() {
 
   const now = new Date().toISOString();
   const existing = await sanityQuery(
-    '*[_type == "job"]{_id, dedupeHash, firstSeen, status, company}',
+    '*[_type == "job"]{_id, dedupeHash, firstSeen, status, company, source}',
   );
   const byHash = new Map(existing.map((d) => [d.dedupeHash, d]));
 
@@ -307,6 +307,9 @@ async function run() {
   const liveHashes = new Set(deduped.map((j) => j.dedupeHash));
   let expired = 0;
   for (const doc of existing) {
+    // Never expire manually-curated/featured roles (e.g. promoted Kodex jobs) —
+    // they aren't pulled from any watched board.
+    if (doc.source === 'manual') continue;
     if (doc.status === 'published' && !liveHashes.has(doc.dedupeHash) && succeededCompanies.has(doc.company)) {
       mutations.push({ patch: { id: doc._id, set: { status: 'expired', lastSeen: now } } });
       expired++;

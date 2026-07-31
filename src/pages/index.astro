@@ -52,13 +52,14 @@ const updated = new Date(data.generatedAt).toLocaleDateString('en-US', {
   <section class="board" id="board">
     {jobs.map((job) => (
       <a
-        class="job-card"
+        class:list={['job-card', { featured: job.featured }]}
         href={`${root}/jobs/${job.slug}`}
         data-title={job.title.toLowerCase()}
         data-company={job.company}
         data-location={job.location.toLowerCase()}
         data-cat={job.roleCategory}
         data-remote={job.remote ? '1' : ''}
+        data-featured={job.featured ? '1' : ''}
       >
         <div class="job-main">
           <h2>{job.title}</h2>
@@ -69,6 +70,7 @@ const updated = new Date(data.generatedAt).toLocaleDateString('en-US', {
           </p>
         </div>
         <div class="job-tags">
+          {job.featured && <span class="pill featured-pill">Featured</span>}
           <span class="pill">{job.roleCategory}</span>
           {job.remote && <span class="pill remote">Remote</span>}
         </div>
@@ -132,6 +134,17 @@ const updated = new Date(data.generatedAt).toLocaleDateString('en-US', {
     transition: background 0.12s ease, border-color 0.12s ease;
   }
   .job-card:hover { background: var(--surface-2); border-color: var(--hairline-strong); }
+  .job-card.featured {
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--hairline));
+    background: color-mix(in srgb, var(--primary) 7%, var(--surface-1));
+  }
+  .job-card.featured:hover {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 11%, var(--surface-1));
+  }
+  .featured-pill {
+    background: var(--primary) !important; color: #fff !important; font-weight: 600;
+  }
   .job-main { min-width: 0; }
   .job-card h2 { font-size: 16px; font-weight: 500; letter-spacing: -0.2px; margin: 0 0 3px; }
   .job-meta { font-size: 14px; color: var(--ink-subtle); margin: 0; display: flex; gap: 8px; flex-wrap: wrap; }
